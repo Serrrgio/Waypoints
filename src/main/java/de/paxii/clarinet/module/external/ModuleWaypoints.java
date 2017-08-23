@@ -3,6 +3,7 @@ package de.paxii.clarinet.module.external;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
+import com.sun.org.apache.bcel.internal.generic.POP;
 import de.paxii.clarinet.Wrapper;
 import de.paxii.clarinet.event.EventHandler;
 import de.paxii.clarinet.event.EventPriority;
@@ -101,11 +102,9 @@ public class ModuleWaypoints extends Module {
             } else if (args[0].equalsIgnoreCase("enable")) {
                 if (args.length == 2) {
                     if (points.get(args[1]) != null) {
-//                        points.remove(args[1]);
-//                        deathPos = Wrapper.getPlayer().getPosition();
-
-//                        points.put(args[1], new Point(Wrapper.getWorld().provider.getDimensionType().getName(), deathPos.getX(), deathPos.getY(), deathPos.getZ(), true, 0xFFFF00, Wrapper.getMinecraft().getCurrentServerData().serverIP));
-//                        setPoint(args[1], );
+                        Point editP = points.get(args[1]);
+                        BlockPos editB = new BlockPos(editP.x, editP.y, editP.z);
+                        setPoint(args[1], editB, true);
                         Chat.printClientMessage("Waypoint " + args[1] + " enable!");
                     } else {
                         Chat.printClientMessage(String.format("Waypoint %s not found.", args[1]));
@@ -116,8 +115,9 @@ public class ModuleWaypoints extends Module {
             } else if (args[0].equalsIgnoreCase("disable")) {
                 if (args.length == 2) {
                     if (points.get(args[1]) != null) {
-//                        points.remove(args[1]);
-//                        points.put(args[1], new Point(Wrapper.getWorld().provider.getDimensionType().getName(), deathPos.getX(), deathPos.getY(), deathPos.getZ(), false, 0xFFFF00, Wrapper.getMinecraft().getCurrentServerData().serverIP));
+                        Point editP = points.get(args[1]);
+                        BlockPos editB = new BlockPos(editP.x, editP.y, editP.z);
+                        setPoint(args[1], editB, false);
                         Chat.printClientMessage("Waypoint " + args[1] + " disable!");
                     } else {
                         Chat.printClientMessage(String.format("Waypoint %s not found.", args[1]));
