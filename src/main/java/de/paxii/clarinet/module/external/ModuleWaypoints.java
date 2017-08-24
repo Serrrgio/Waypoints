@@ -104,7 +104,7 @@ public class ModuleWaypoints extends Module {
                     if (points.get(args[1]) != null) {
                         Point editP = points.get(args[1]);
                         BlockPos editB = new BlockPos(editP.x, editP.y, editP.z);
-                        setPoint(args[1], editB, true);
+                        setPoint(args[1], editB, true, editP.color);
                         Chat.printClientMessage("Waypoint " + args[1] + " enable!");
                     } else {
                         Chat.printClientMessage(String.format("Waypoint %s not found.", args[1]));
@@ -117,7 +117,7 @@ public class ModuleWaypoints extends Module {
                     if (points.get(args[1]) != null) {
                         Point editP = points.get(args[1]);
                         BlockPos editB = new BlockPos(editP.x, editP.y, editP.z);
-                        setPoint(args[1], editB, false);
+                        setPoint(args[1], editB, false, editP.color);
                         Chat.printClientMessage("Waypoint " + args[1] + " disable!");
                     } else {
                         Chat.printClientMessage(String.format("Waypoint %s not found.", args[1]));
