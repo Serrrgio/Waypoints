@@ -130,13 +130,12 @@ public class ModuleWaypoints extends Module {
                 if (args.length == 2) {
                     pName = args[1];
                 } else {
-                    int i;
-                    for (i = 1; i < 10000; i++) {
-                        if (points.get("point" + i) == null) break;
+                    int i = 1;
+                    while (points.get("point" + i) != null) {
+                        i++;
                     }
                     pName = "point" + i;
                 }
-//                deathPos = Wrapper.getPlayer().getPosition();
                 points.put(pName, new Point(Wrapper.getWorld().provider.getDimensionType().getName(), deathPos.getX(), deathPos.getY(), deathPos.getZ(), true, 0xFFFF00, getServerIP()));
                 Chat.printClientMessage(String.format("Waypoint %s add at %d %d %d.", pName, deathPos.getX(), deathPos.getY(), deathPos.getZ()));
             } else {
