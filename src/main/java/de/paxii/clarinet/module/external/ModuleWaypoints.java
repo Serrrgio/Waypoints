@@ -71,7 +71,7 @@ public class ModuleWaypoints extends Module {
         if (event.getGuiScreen() instanceof GuiGameOver) {
             deathPos = Wrapper.getPlayer().getPosition();
             deathWorld = Wrapper.getWorld().provider.getDimensionType().getName();
-            points.put("death", new Point(deathWorld, deathPos.getX(), deathPos.getY(), deathPos.getZ(), true, 0xFF00FF, getServerIP()));
+            setPoint("death", deathPos, 0xFF00FF);
         }
     }
 
@@ -129,6 +129,12 @@ public class ModuleWaypoints extends Module {
                 String pName = "";
                 if (args.length == 2) {
                     pName = args[1];
+                    if (points.get(args[1]) != null) {
+                        pName = "";
+                        Chat.printClientMessage("Use: Waypoint " + args[1] + " already exists (can on another server).");
+                    } else {
+                        pName = args[1];
+                    }
                 } else {
                     int i = 1;
                     while (points.get("point" + i) != null) {
@@ -136,14 +142,14 @@ public class ModuleWaypoints extends Module {
                     }
                     pName = "point" + i;
                 }
-                points.put(pName, new Point(Wrapper.getWorld().provider.getDimensionType().getName(), deathPos.getX(), deathPos.getY(), deathPos.getZ(), true, 0xFFFF00, getServerIP()));
+                if (!pName.equals("")) setPoint(pName, deathPos);
                 Chat.printClientMessage(String.format("Waypoint %s add at %d %d %d.", pName, deathPos.getX(), deathPos.getY(), deathPos.getZ()));
             } else {
                 Chat.printClientMessage("Unknown subcommand!");
             }
         } else if (args.length == 5 && args[0].equalsIgnoreCase("addpos")) {
             deathPos = new BlockPos(Integer.parseInt(args[2]), Integer.parseInt(args[3]), Integer.parseInt(args[4]));
-            points.put(args[0], new Point(Wrapper.getWorld().provider.getDimensionType().getName(), deathPos.getX(), deathPos.getY(), deathPos.getZ(), true, 0xFFFF00, getServerIP()));
+            setPoint(args[0], deathPos);
             Chat.printClientMessage(String.format("Waypoint %s add at %d %d %d (server IP %s).", args[0], deathPos.getX(), deathPos.getY(), deathPos.getZ(), getServerIP()));
         } else {
             Chat.printClientMessage("Too few arguments!");
@@ -154,9 +160,23 @@ public class ModuleWaypoints extends Module {
         points.put(name, new Point(Wrapper.getWorld().provider.getDimensionType().getName(), pos.getX(), pos.getY(), pos.getZ(), enable, 0xFFFF00, getServerIP()));
     }
 
+    private void setPoint (String name, BlockPos pos) {
+        points.put(name, new Point(Wrapper.getWorld().provider.getDimensionType().getName(), pos.getX(), pos.getY(), pos.getZ(), true, 0xFFFF00, getServerIP()));
+    }
+
+    private void setPoint (String name, BlockPos pos, int color) {
+        points.put(name, new Point(Wrapper.getWorld().provider.getDimensionType().getName(), pos.getX(), pos.getY(), pos.getZ(), true, color, getServerIP()));
+    }
+
+    private void setPoint (String name, BlockPos pos, boolean enable, int color) {
+        points.put(name, new Point(Wrapper.getWorld().provider.getDimensionType().getName(), pos.getX(), pos.getY(), pos.getZ(), enable, color, getServerIP()));
+    }
+
     private String getServerIP() {
+
         return Wrapper.getMinecraft().getCurrentServerData().serverIP;
     }
+
     @EventHandler
     public void onGlobalRender(RenderTickEvent renderTickEvent) {
         try {
