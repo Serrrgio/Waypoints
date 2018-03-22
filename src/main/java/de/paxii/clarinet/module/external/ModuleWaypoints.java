@@ -6,7 +6,6 @@ import com.google.gson.reflect.TypeToken;
 
 import de.paxii.clarinet.Wrapper;
 import de.paxii.clarinet.event.EventHandler;
-import de.paxii.clarinet.event.EventPriority;
 import de.paxii.clarinet.event.events.game.RenderTickEvent;
 import de.paxii.clarinet.event.events.game.StopGameEvent;
 import de.paxii.clarinet.event.events.gui.DisplayGuiScreenEvent;
@@ -42,9 +41,7 @@ import java.util.Map;
 import java.util.Scanner;
 
 public class ModuleWaypoints extends Module {
-  private BlockPos deathPos = null;
-  private String deathWorld = "";
-  public HashMap<String, Point> points;
+  private HashMap<String, Point> points;
 
   public ModuleWaypoints() {
     super("Waypoints", ModuleCategory.RENDER);
@@ -53,32 +50,29 @@ public class ModuleWaypoints extends Module {
     this.setBuildVersion(16000);
     this.setRegistered(true);
     this.setCommand(true);
-    this.setSyntax("waypoint <remove>|<add>");
+    this.setDisplayedInGui(false);
     this.setEnabled(true);
-
-    loadPoints();
+    this.setSyntax("waypoint <remove>|<add>");
   }
 
   @Override
   public void onEnable() {
-    Wrapper.getEventManager().register(this);
+    this.loadPoints();
   }
 
-  @EventHandler(priority = EventPriority.HIGHEST)
+  @EventHandler
   public void onDisplayGuiScreen(DisplayGuiScreenEvent event) {
     if (event.getGuiScreen() instanceof GuiGameOver) {
-      deathPos = Wrapper.getPlayer().getPosition();
-      deathWorld = Wrapper.getWorld().provider.getDimensionType().getName();
-      setPoint("death", deathPos, 0xFF00FF);
+      BlockPos currentPosition = Wrapper.getPlayer().getPosition();
+      this.setPoint("death", currentPosition, 0xFF00FF);
     }
   }
 
   @Override
   public void onCommand(String[] args) {
-    deathPos = Wrapper.getPlayer().getPosition();
+    BlockPos currentPosition = Wrapper.getPlayer().getPosition();
     if (args.length < 3) {
       if (args.length == 0 || args[0].equalsIgnoreCase("list")) {
-        // list waypoints
         Chat.printClientMessage("List of waypoints:");
         for (Map.Entry entry : points.entrySet()) {
           Point val = (Point) entry.getValue();
@@ -102,7 +96,7 @@ public class ModuleWaypoints extends Module {
           if (points.get(args[1]) != null) {
             Point editP = points.get(args[1]);
             BlockPos editB = new BlockPos(editP.x, editP.y, editP.z);
-            setPoint(args[1], editB, true, editP.color);
+            this.setPoint(args[1], editB, true, editP.color);
             Chat.printClientMessage("Waypoint " + args[1] + " enable!");
           } else {
             Chat.printClientMessage(String.format("Waypoint %s not found.", args[1]));
@@ -115,7 +109,7 @@ public class ModuleWaypoints extends Module {
           if (points.get(args[1]) != null) {
             Point editP = points.get(args[1]);
             BlockPos editB = new BlockPos(editP.x, editP.y, editP.z);
-            setPoint(args[1], editB, false, editP.color);
+            this.setPoint(args[1], editB, false, editP.color);
             Chat.printClientMessage("Waypoint " + args[1] + " disable!");
           } else {
             Chat.printClientMessage(String.format("Waypoint %s not found.", args[1]));
@@ -124,54 +118,63 @@ public class ModuleWaypoints extends Module {
           Chat.printClientMessage("Use: #waypoints disable <waypoint name>");
         }
       } else if (args[0].equalsIgnoreCase("add")) {
-        String pName = "";
+        String waypointName;
         if (args.length == 2) {
-          pName = args[1];
-          if (points.get(args[1]) != null) {
-            pName = "";
+          waypointName = args[1];
+          if (points.get(waypointName) != null) {
             Chat.printClientMessage("Use: Waypoint " + args[1] + " already exists (can on another server).");
-          } else {
-            pName = args[1];
+            return;
           }
         } else {
           int i = 1;
           while (points.get("point" + i) != null) {
             i++;
           }
-          pName = "point" + i;
+          waypointName = "point" + i;
         }
-        if (!pName.equals("")) setPoint(pName, deathPos);
-        Chat.printClientMessage(String.format("Waypoint %s add at %d %d %d.", pName, deathPos.getX(), deathPos.getY(), deathPos.getZ()));
+        if (!waypointName.trim().isEmpty()) {
+          this.setPoint(waypointName, currentPosition);
+          Chat.printClientMessage(String.format("Waypoint %s add at %d %d %d.", waypointName, currentPosition.getX(), currentPosition.getY(), currentPosition.getZ()));
+        }
       } else {
         Chat.printClientMessage("Unknown subcommand!");
       }
     } else if (args.length == 5 && args[0].equalsIgnoreCase("addpos")) {
-      deathPos = new BlockPos(Integer.parseInt(args[2]), Integer.parseInt(args[3]), Integer.parseInt(args[4]));
-      setPoint(args[0], deathPos);
-      Chat.printClientMessage(String.format("Waypoint %s add at %d %d %d (server IP %s).", args[0], deathPos.getX(), deathPos.getY(), deathPos.getZ(), getServerIP()));
+      currentPosition = new BlockPos(Integer.parseInt(args[2]), Integer.parseInt(args[3]), Integer.parseInt(args[4]));
+      this.setPoint(args[0], currentPosition);
+      Chat.printClientMessage(String.format("Waypoint %s add at %d %d %d (server IP %s).", args[0], currentPosition.getX(), currentPosition.getY(), currentPosition.getZ(), getServerIP()));
     } else {
       Chat.printClientMessage("Too few arguments!");
     }
   }
 
   private void setPoint(String name, BlockPos pos, boolean enable) {
-    points.put(name, new Point(Wrapper.getWorld().provider.getDimensionType().getName(), pos.getX(), pos.getY(), pos.getZ(), enable, 0xFFFF00, getServerIP()));
+    this.setPoint(name, pos, enable, 0xFFFF00);
   }
 
   private void setPoint(String name, BlockPos pos) {
-    points.put(name, new Point(Wrapper.getWorld().provider.getDimensionType().getName(), pos.getX(), pos.getY(), pos.getZ(), true, 0xFFFF00, getServerIP()));
+    this.setPoint(name, pos, 0xFFFF00);
   }
 
   private void setPoint(String name, BlockPos pos, int color) {
-    points.put(name, new Point(Wrapper.getWorld().provider.getDimensionType().getName(), pos.getX(), pos.getY(), pos.getZ(), true, color, getServerIP()));
+    this.setPoint(name, pos, true, color);
   }
 
   private void setPoint(String name, BlockPos pos, boolean enable, int color) {
-    points.put(name, new Point(Wrapper.getWorld().provider.getDimensionType().getName(), pos.getX(), pos.getY(), pos.getZ(), enable, color, getServerIP()));
+    this.points.put(name, new Point(
+            Wrapper.getWorld().provider.getDimensionType().getName(),
+            pos.getX(),
+            pos.getY(),
+            pos.getZ(),
+            enable,
+            color,
+            getServerIP()
+    ));
   }
 
   private String getServerIP() {
-    return Wrapper.getMinecraft().getCurrentServerData().serverIP;
+    return Wrapper.getMinecraft().getCurrentServerData() != null ?
+            Wrapper.getMinecraft().getCurrentServerData().serverIP : "localhost";
   }
 
   @EventHandler
@@ -212,7 +215,8 @@ public class ModuleWaypoints extends Module {
   private void renderWaypointsForEntity(Vec3d startingPoint, Point curP) {
     if (!(Wrapper.getMinecraft().currentScreen instanceof GuiContainer)) {
       if (curP != null) {
-        if (curP.enable && Wrapper.getWorld().provider.getDimensionType().getName().equals(curP.dimension) && getServerIP().equals(curP.severIP)) {
+        if (curP.enable
+                && Wrapper.getWorld().provider.getDimensionType().getName().equals(curP.dimension) && getServerIP().equals(curP.severIP)) {
           Vec3d endPoint = new Vec3d(curP.x, curP.y, curP.z);
           this.drawLine(startingPoint, endPoint, new Color(curP.color));
         }
@@ -222,15 +226,15 @@ public class ModuleWaypoints extends Module {
 
   private void drawLine(Vec3d start, Vec3d end, Color lineColor) {
     Tessellator tessellator = Tessellator.getInstance();
-    BufferBuilder vertexbuffer = tessellator.getBuffer();
-    vertexbuffer.begin(3, DefaultVertexFormats.POSITION_COLOR);
-    vertexbuffer.pos(start.x, start.y, start.z).color(
+    BufferBuilder vertexBuffer = tessellator.getBuffer();
+    vertexBuffer.begin(3, DefaultVertexFormats.POSITION_COLOR);
+    vertexBuffer.pos(start.x, start.y, start.z).color(
             lineColor.getRed(),
             lineColor.getGreen(),
             lineColor.getBlue(),
             lineColor.getAlpha()
     ).endVertex();
-    vertexbuffer.pos(end.x, end.y, end.z).color(
+    vertexBuffer.pos(end.x, end.y, end.z).color(
             lineColor.getRed(),
             lineColor.getGreen(),
             lineColor.getBlue(),
@@ -272,14 +276,9 @@ public class ModuleWaypoints extends Module {
     }
   }
 
-  @Override
-  public void onDisable() {
-    Wrapper.getEventManager().unregister(this);
-  }
-
   @EventHandler
   public void onStopGame(StopGameEvent event) {
-    savePoints();
+    this.savePoints();
   }
 
   private void savePoints() {
@@ -309,7 +308,7 @@ public class ModuleWaypoints extends Module {
   }
 
   private void loadPoints() {
-    points = new HashMap<>();
+    this.points = new HashMap<>();
     File settingFolder = new File(ClientSettings.getClientFolderPath().getValue() + "/");
     Gson gson = new Gson();
     File settingsFile = new File(settingFolder, "Waypoints.json");
@@ -322,7 +321,7 @@ public class ModuleWaypoints extends Module {
       }
 
       try {
-        points = gson.fromJson(jsonString.toString(), new TypeToken<HashMap<String, Point>>() {
+        this.points = gson.fromJson(jsonString.toString(), new TypeToken<HashMap<String, Point>>() {
         }.getType());
       } catch (JsonSyntaxException e) {
         e.printStackTrace();
