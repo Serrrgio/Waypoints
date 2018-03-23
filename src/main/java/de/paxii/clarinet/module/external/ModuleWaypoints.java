@@ -1,180 +1,159 @@
 package de.paxii.clarinet.module.external;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonSyntaxException;
-import com.google.gson.reflect.TypeToken;
+import com.google.gson.JsonParseException;
 
 import de.paxii.clarinet.Wrapper;
+import de.paxii.clarinet.domain.model.Point;
+import de.paxii.clarinet.domain.service.WaypointService;
 import de.paxii.clarinet.event.EventHandler;
 import de.paxii.clarinet.event.events.game.RenderTickEvent;
-import de.paxii.clarinet.event.events.game.StopGameEvent;
 import de.paxii.clarinet.event.events.gui.DisplayGuiScreenEvent;
 import de.paxii.clarinet.function.ThrowingStringFunction;
 import de.paxii.clarinet.module.Module;
 import de.paxii.clarinet.module.ModuleCategory;
 import de.paxii.clarinet.util.chat.Chat;
 import de.paxii.clarinet.util.render.GL11Helper;
-import de.paxii.clarinet.util.settings.ClientSettings;
+import de.paxii.clarinet.util.settings.type.ClientSettingString;
 
 import net.minecraft.client.gui.GuiGameOver;
 import net.minecraft.client.gui.inventory.GuiContainer;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.EntityRenderer;
 import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.RenderGlobal;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
+import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
 import org.lwjgl.opengl.GL11;
 
 import java.awt.*;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.PrintWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Scanner;
+import java.util.ArrayList;
 
 public class ModuleWaypoints extends Module {
-  private HashMap<String, Point> points;
+
+  private WaypointService waypointService;
 
   public ModuleWaypoints() {
     super("Waypoints", ModuleCategory.RENDER);
 
     this.setVersion("1.0");
     this.setBuildVersion(16000);
-    this.setRegistered(true);
-    this.setCommand(true);
     this.setDisplayedInGui(false);
+    this.setCommand(true);
+    this.setRegistered(true);
     this.setEnabled(true);
-    this.setSyntax("waypoint <remove>|<add>");
+    this.setSyntax("waypoints <list/add/addpos/enabled/disable/remove>");
+    this.setDescription("Waypoints");
+
+    this.waypointService = new WaypointService();
   }
 
   @Override
-  public void onEnable() {
-    this.loadPoints();
+  public void onStartup() {
+    try {
+      String waypointSetting = this.getValueOrDefault("waypoints", String.class, null);
+      this.waypointService.loadPoints(waypointSetting);
+    } catch (JsonParseException exception) {
+      exception.printStackTrace();
+    }
   }
 
   @EventHandler
   public void onDisplayGuiScreen(DisplayGuiScreenEvent event) {
     if (event.getGuiScreen() instanceof GuiGameOver) {
-      BlockPos currentPosition = Wrapper.getPlayer().getPosition();
-      this.setPoint("death", currentPosition, 0xFF00FF);
+      this.waypointService.addWaypoint("death", Wrapper.getPlayer().getPosition(), 0xff0000);
     }
   }
 
   @Override
   public void onCommand(String[] args) {
     BlockPos currentPosition = Wrapper.getPlayer().getPosition();
-    if (args.length < 3) {
-      if (args.length == 0 || args[0].equalsIgnoreCase("list")) {
-        Chat.printClientMessage("List of waypoints:");
-        for (Map.Entry entry : points.entrySet()) {
-          Point val = (Point) entry.getValue();
-          if (getServerIP().equals(val.severIP)) {
-            Chat.printClientMessage(String.format("%s at %d %d %d (%s).", entry.getKey(), val.x, val.y, val.z, val.enable ? "enable" : "disable"));
-          }
-        }
-      } else if (args[0].equalsIgnoreCase("remove")) {
-        if (args.length == 2) {
-          if (points.get(args[1]) != null) {
-            points.remove(args[1]);
-            Chat.printClientMessage("Waypoint " + args[1] + " remove!");
-          } else {
-            Chat.printClientMessage(String.format("Waypoint %s not found.", args[1]));
-          }
+
+    if (args.length > 0) {
+      if (args[0].equalsIgnoreCase("list")) {
+        ArrayList<Point> currentWaypoints = this.waypointService.getWaypoints();
+        if (!currentWaypoints.isEmpty()) {
+          this.sendClientMessage("List of waypoints:");
+          currentWaypoints.forEach(waypoint -> Chat.printChatMessage(String.format("%s at %d %d %d (%s).",
+                  waypoint.getName(),
+                  waypoint.getX(),
+                  waypoint.getY(),
+                  waypoint.getZ(),
+                  waypoint.isEnabled() ? "enabled" : "disable"
+          )));
         } else {
-          Chat.printClientMessage("Use: #waypoints remove <waypoint name>");
-        }
-      } else if (args[0].equalsIgnoreCase("enable")) {
-        if (args.length == 2) {
-          if (points.get(args[1]) != null) {
-            Point editP = points.get(args[1]);
-            BlockPos editB = new BlockPos(editP.x, editP.y, editP.z);
-            this.setPoint(args[1], editB, true, editP.color);
-            Chat.printClientMessage("Waypoint " + args[1] + " enable!");
-          } else {
-            Chat.printClientMessage(String.format("Waypoint %s not found.", args[1]));
-          }
-        } else {
-          Chat.printClientMessage("Use: #waypoints enable <waypoint name>");
-        }
-      } else if (args[0].equalsIgnoreCase("disable")) {
-        if (args.length == 2) {
-          if (points.get(args[1]) != null) {
-            Point editP = points.get(args[1]);
-            BlockPos editB = new BlockPos(editP.x, editP.y, editP.z);
-            this.setPoint(args[1], editB, false, editP.color);
-            Chat.printClientMessage("Waypoint " + args[1] + " disable!");
-          } else {
-            Chat.printClientMessage(String.format("Waypoint %s not found.", args[1]));
-          }
-        } else {
-          Chat.printClientMessage("Use: #waypoints disable <waypoint name>");
+          this.sendClientMessage("No Waypoints available for this server.");
         }
       } else if (args[0].equalsIgnoreCase("add")) {
         String waypointName;
-        if (args.length == 2) {
+        if (args.length >= 2) {
           waypointName = args[1];
-          if (points.get(waypointName) != null) {
-            Chat.printClientMessage("Use: Waypoint " + args[1] + " already exists (can on another server).");
-            return;
-          }
         } else {
-          int i = 1;
-          while (points.get("point" + i) != null) {
-            i++;
+          int i = 0;
+          for (; this.waypointService.doesWaypointExist("Waypoint " + i); i++) {
           }
-          waypointName = "point" + i;
+          waypointName = "Waypoint " + i;
         }
         if (!waypointName.trim().isEmpty()) {
-          this.setPoint(waypointName, currentPosition);
-          Chat.printClientMessage(String.format("Waypoint %s add at %d %d %d.", waypointName, currentPosition.getX(), currentPosition.getY(), currentPosition.getZ()));
+          // TODO: Add Support for colors
+          if (this.waypointService.addWaypoint(waypointName, currentPosition)) {
+            this.sendClientMessage(String.format("Waypoint %s was added at %d %d %d.",
+                    waypointName,
+                    currentPosition.getX(),
+                    currentPosition.getY(),
+                    currentPosition.getZ()
+            ));
+          } else {
+            this.sendClientMessage(String.format("Waypoint %s does already exist.", waypointName));
+          }
+        }
+      } else if (args[0].equalsIgnoreCase("addpos")) {
+        if (args.length >= 5) {
+          currentPosition = new BlockPos(Integer.parseInt(args[2]), Integer.parseInt(args[3]), Integer.parseInt(args[4]));
+          this.waypointService.addWaypoint(args[1], currentPosition);
+          this.sendClientMessage(String.format("Waypoint %s was added at %d %d %d.",
+                  args[1],
+                  currentPosition.getX(),
+                  currentPosition.getY(),
+                  currentPosition.getZ()
+          ));
+        } else {
+          this.sendClientMessage("Usage: waypoints add <waypoint name>");
+        }
+      } else if (args[0].equalsIgnoreCase("remove")) {
+        if (args.length >= 2) {
+          if (this.waypointService.removeWaypoint(args[1])) {
+            this.sendClientMessage("Waypoint " + args[1] + " was removed.");
+          } else {
+            this.sendClientMessage(String.format("Waypoint %s not found.", args[1]));
+          }
+        } else {
+          this.sendClientMessage("Usage: waypoints remove <waypoint name>");
+        }
+      } else if (args[0].equalsIgnoreCase("enabled") || args[0].equalsIgnoreCase("disable")) {
+        if (args.length >= 2) {
+          Point waypoint = this.waypointService.getWaypoint(args[1]);
+          if (waypoint != null) {
+            waypoint.setEnabled(args[0].equalsIgnoreCase("enabled"));
+            this.sendClientMessage(String.format("Waypoint %s was %s.", args[1], waypoint.isEnabled() ? "enabled" : "disabled"));
+          } else {
+            this.sendClientMessage(String.format("Waypoint %s not found.", args[1]));
+          }
+        } else {
+          this.sendClientMessage("Usage: waypoints enabled <waypoint name>");
         }
       } else {
-        Chat.printClientMessage("Unknown subcommand!");
+        this.sendClientMessage("Unknown subcommand!");
       }
-    } else if (args.length == 5 && args[0].equalsIgnoreCase("addpos")) {
-      currentPosition = new BlockPos(Integer.parseInt(args[2]), Integer.parseInt(args[3]), Integer.parseInt(args[4]));
-      this.setPoint(args[0], currentPosition);
-      Chat.printClientMessage(String.format("Waypoint %s add at %d %d %d (server IP %s).", args[0], currentPosition.getX(), currentPosition.getY(), currentPosition.getZ(), getServerIP()));
     } else {
-      Chat.printClientMessage("Too few arguments!");
+      this.sendClientMessage("Too few arguments!");
     }
-  }
-
-  private void setPoint(String name, BlockPos pos, boolean enable) {
-    this.setPoint(name, pos, enable, 0xFFFF00);
-  }
-
-  private void setPoint(String name, BlockPos pos) {
-    this.setPoint(name, pos, 0xFFFF00);
-  }
-
-  private void setPoint(String name, BlockPos pos, int color) {
-    this.setPoint(name, pos, true, color);
-  }
-
-  private void setPoint(String name, BlockPos pos, boolean enable, int color) {
-    this.points.put(name, new Point(
-            Wrapper.getWorld().provider.getDimensionType().getName(),
-            pos.getX(),
-            pos.getY(),
-            pos.getZ(),
-            enable,
-            color,
-            getServerIP()
-    ));
-  }
-
-  private String getServerIP() {
-    return Wrapper.getMinecraft().getCurrentServerData() != null ?
-            Wrapper.getMinecraft().getCurrentServerData().serverIP : "localhost";
   }
 
   @EventHandler
@@ -182,19 +161,24 @@ public class ModuleWaypoints extends Module {
     try {
       this.setup(true);
       this.renderWaypoints(renderTickEvent.getRenderPartialTicks());
-      this.setup(false);
     } catch (Exception e) {
       e.printStackTrace();
+    } finally {
+      this.setup(false);
     }
   }
 
   private void renderWaypoints(float partialTicks) throws Exception {
-    RenderManager renderManager = Wrapper.getMinecraft().getRenderManager();
+    if (Wrapper.getMinecraft().currentScreen instanceof GuiContainer
+            || this.waypointService.getWaypoints().isEmpty()) {
+      return;
+    }
 
     Method orientCamera = EntityRenderer.class.getDeclaredMethod("orientCamera", float.class);
     orientCamera.setAccessible(true);
     orientCamera.invoke(Wrapper.getRenderer(), partialTicks);
 
+    RenderManager renderManager = Wrapper.getMinecraft().getRenderManager();
     ThrowingStringFunction<Double> renderPosition = (position) -> {
       Field renderPos = RenderManager.class.getDeclaredField("renderPos" + position);
       renderPos.setAccessible(true);
@@ -207,21 +191,16 @@ public class ModuleWaypoints extends Module {
     Vec3d startPoint = Wrapper.getPlayer().getLook(partialTicks)
             .addVector(0, Wrapper.getPlayer().getEyeHeight(), 0)
             .addVector(startingPosition[0], startingPosition[1], startingPosition[2]);
-    for (Point value : points.values()) {
-      this.renderWaypointsForEntity(startPoint, value);
-    }
+
+    this.waypointService.getWaypoints().stream()
+            .filter(Point::isEnabled)
+            .filter(w -> w.getWorld().equals(Wrapper.getWorld().provider.getDimensionType().getName()))
+            .forEach(w -> this.renderWaypointsForEntity(startPoint, w));
   }
 
-  private void renderWaypointsForEntity(Vec3d startingPoint, Point curP) {
-    if (!(Wrapper.getMinecraft().currentScreen instanceof GuiContainer)) {
-      if (curP != null) {
-        if (curP.enable
-                && Wrapper.getWorld().provider.getDimensionType().getName().equals(curP.dimension) && getServerIP().equals(curP.severIP)) {
-          Vec3d endPoint = new Vec3d(curP.x, curP.y, curP.z);
-          this.drawLine(startingPoint, endPoint, new Color(curP.color));
-        }
-      }
-    }
+  private void renderWaypointsForEntity(Vec3d startingPoint, Point waypoint) {
+    Vec3d endPoint = new Vec3d(waypoint.getX(), waypoint.getY(), waypoint.getZ());
+    this.drawLine(startingPoint, endPoint, new Color(waypoint.getColor()));
   }
 
   private void drawLine(Vec3d start, Vec3d end, Color lineColor) {
@@ -276,60 +255,11 @@ public class ModuleWaypoints extends Module {
     }
   }
 
-  @EventHandler
-  public void onStopGame(StopGameEvent event) {
-    this.savePoints();
+  @Override
+  public void onShutdown() {
+    this.getModuleSettings().put(
+            "waypoints", new ClientSettingString("waypoints", this.waypointService.savePoints())
+    );
   }
 
-  private void savePoints() {
-    File settingFolder = new File(ClientSettings.getClientFolderPath().getValue() + "/");
-    File settingsFile = new File(settingFolder, "Waypoints.json");
-    settingsFile.delete();
-
-    Gson gson = new Gson();
-
-    String jsonString = gson.toJson(points);
-
-    try {
-      settingsFile.createNewFile();
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
-
-    try {
-      PrintWriter pw = new PrintWriter(settingsFile.getAbsolutePath());
-
-      pw.print(jsonString);
-
-      pw.close();
-    } catch (FileNotFoundException e) {
-      e.printStackTrace();
-    }
-  }
-
-  private void loadPoints() {
-    this.points = new HashMap<>();
-    File settingFolder = new File(ClientSettings.getClientFolderPath().getValue() + "/");
-    Gson gson = new Gson();
-    File settingsFile = new File(settingFolder, "Waypoints.json");
-    StringBuilder jsonString = new StringBuilder();
-    try {
-      Scanner sc = new Scanner(settingsFile);
-
-      while (sc.hasNextLine()) {
-        jsonString.append(sc.nextLine());
-      }
-
-      try {
-        this.points = gson.fromJson(jsonString.toString(), new TypeToken<HashMap<String, Point>>() {
-        }.getType());
-      } catch (JsonSyntaxException e) {
-        e.printStackTrace();
-      }
-
-      sc.close();
-    } catch (FileNotFoundException e) {
-      e.printStackTrace();
-    }
-  }
 }
